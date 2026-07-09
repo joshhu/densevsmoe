@@ -4,6 +4,13 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
+# transformers 首次 import（lazy module）與 from_pretrained（暫時切換全域
+# torch 預設 dtype 再還原）皆非執行緒安全：dense 與 moe 兩條背景載入執行緒
+# 並行執行時，前者會導致 import 失敗，後者會讓 tied lm_head 用錯誤的全域
+# 預設 dtype 初始化，造成 infer 時 dtype 不匹配的 500。此鎖將實際載入序列化，
+# 避免上述兩種競態（狀態機與 _loading_kinds 機制不變，僅實際載入變成排隊執行）。
+_LOAD_LOCK = threading.Lock()
+
 
 @dataclass(frozen=True)
 class ModelInfo:
@@ -61,7 +68,7 @@ class ModelManager:
 
         tok = AutoTokenizer.from_pretrained(model_id)
         model = AutoModelForCausalLM.from_pretrained(
-            model_id, torch_dtype=torch.bfloat16,
+            model_id, dtype=torch.bfloat16,
             device_map="cuda" if torch.cuda.is_available() else "cpu")
         model.eval()
         return model, tok
@@ -92,7 +99,8 @@ class ModelManager:
     def _load_worker(self, info: ModelInfo):
         try:
             self._unload(info.kind)
-            model, tok = self._loader(info.id)
+            with _LOAD_LOCK:
+                model, tok = self._loader(info.id)
             with self._lock:
                 self.loaded[info.kind] = (info.id, model, tok)
                 self.status[info.id] = {"state": "ready", "detail": ""}

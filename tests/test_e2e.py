@@ -36,12 +36,12 @@ def test_full_user_flow(server, page):
     page.goto(server)
     page.select_option("#dense-select", GPT2)
     page.select_option("#moe-select", GRANITE)
-    # 依序載入：先等 dense 就緒再載入 MoE。兩顆載入鍵幾乎同時按下時，
-    # 伺服器兩條背景執行緒會同時首次 import transformers，
-    # 觸發 lazy-module 的執行緒競態導致 MoE 載入失敗（詳見 task-7-report.md）。
+    # 真實使用者行為：連點兩顆載入鈕再各自等待完成。server/models.py 已用
+    # _LOAD_LOCK 序列化實際載入（避免 transformers 首次 import 的 lazy-module
+    # 競態，以及並行 from_pretrained 踩踏全域預設 dtype），此處直接驗證修復。
     page.click("#btn-load-dense")
-    expect(page.locator("#dense-status")).to_have_text("✓ 已載入", timeout=600_000)
     page.click("#btn-load-moe")
+    expect(page.locator("#dense-status")).to_have_text("✓ 已載入", timeout=600_000)
     expect(page.locator("#moe-status")).to_have_text("✓ 已載入", timeout=600_000)
 
     page.fill("#sentence", "今天天氣真好")

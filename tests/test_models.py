@@ -1,4 +1,5 @@
 """ModelManager 單元測試（用假 loader，不下載模型）。"""
+import threading
 import time
 
 import pytest
@@ -82,3 +83,36 @@ def test_switch_unloads_old():
     assert mgr.loaded["dense"][0] == b
     assert mgr.get("dense", a) is None
     assert mgr.status[a]["state"] == "idle"
+
+
+def test_cross_kind_loads_serialized():
+    """dense 與 moe 屬不同 kind，_loading_kinds 機制允許兩者同時被接受排隊，
+    但實際載入必須經 _LOAD_LOCK 序列化，避免並行 from_pretrained/import 競態。"""
+    intervals = []
+    lock = threading.Lock()
+
+    def slow_loader(model_id):
+        start = time.time()
+        time.sleep(0.2)
+        end = time.time()
+        with lock:
+            intervals.append((start, end))
+        return f"model:{model_id}", f"tok:{model_id}"
+
+    mgr = ModelManager(loader=slow_loader, mem_check=lambda: 999.0)
+    dense_id = "openai-community/gpt2"
+    moe_id = "ibm-granite/granite-3.1-1b-a400m-instruct"
+
+    t_dense = threading.Thread(target=mgr.request_load, args=(dense_id,))
+    t_moe = threading.Thread(target=mgr.request_load, args=(moe_id,))
+    t_dense.start()
+    t_moe.start()
+    t_dense.join()
+    t_moe.join()
+
+    assert wait_ready(mgr, dense_id)["state"] == "ready"
+    assert wait_ready(mgr, moe_id)["state"] == "ready"
+
+    assert len(intervals) == 2
+    (s1, e1), (s2, e2) = sorted(intervals)
+    assert e1 <= s2, f"載入區間重疊，未序列化：{intervals}"

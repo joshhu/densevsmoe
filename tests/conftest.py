@@ -5,7 +5,7 @@ import tempfile
 os.environ.setdefault(
     "TRITON_CACHE_DIR", os.path.join(tempfile.gettempdir(), "triton-cache"))
 
-# 預先匯入 transformers，避免 ModelManager 背景執行緒同時載入 dense/moe 模型時，
-# 對 transformers 的 lazy-module 造成競態（並行首次 import 觸發已知的執行緒不安全問題）。
-import transformers  # noqa: E402
-from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402,F401
+# 註：先前這裡有「預先匯入 transformers」的因應措施，用來規避 ModelManager
+# 背景執行緒並行首次 import transformers 的 lazy-module 競態。該競態已在
+# server/models.py 用 _LOAD_LOCK 從產品碼源頭修掉（整個 _loader 呼叫，含
+# import，皆已序列化），故此處不再需要，已移除。
