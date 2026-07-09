@@ -70,3 +70,4 @@ footer { text-align: center; color: var(--muted); font-size: 0.75rem; padding: 0
 .col-label { fill: var(--muted); font-size: 8px; }
 .legend { color: var(--muted); font-size: 0.75rem; margin: 0.4rem 0 0; }
 #moe-info { color: var(--moe); font-size: 0.92rem; font-weight: 600; }
+#dense-info { color: var(--dense); font-size: 0.92rem; font-weight: 600; }
