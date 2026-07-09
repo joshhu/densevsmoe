@@ -25,12 +25,19 @@ uv run uvicorn server.main:app --port 8000
 
 ## 支援模型
 
-| 類型 | 模型 | 大小 (bf16) |
-|------|------|------|
-| Dense | openai-community/gpt2 | 0.3GB |
-| Dense | Qwen/Qwen2.5-0.5B-Instruct | 1GB |
-| MoE | ibm-granite/granite-3.1-1b-a400m-instruct | 2.6GB |
-| MoE | allenai/OLMoE-1B-7B-0924-Instruct | 14GB |
+| 類型 | 模型 | 總參數 | 每 token 動用 | 大小 (bf16) |
+|------|------|------|------|------|
+| Dense | openai-community/gpt2 | 124M | 124M（100%） | 0.3GB |
+| Dense | Qwen/Qwen2.5-0.5B-Instruct | 0.49B | 0.49B（100%） | 1GB |
+| Dense | Qwen/Qwen2.5-1.5B-Instruct | 1.54B | 1.54B（100%） | 3.1GB |
+| Dense | Qwen/Qwen2.5-7B-Instruct | 7.6B | 7.6B（100%） | 15.2GB |
+| MoE | ibm-granite/granite-3.1-1b-a400m-instruct | 1.3B | 0.4B（≈31%） | 2.6GB |
+| MoE | allenai/OLMoE-1B-7B-0924-Instruct | 6.9B | 1.3B（≈19%） | 14GB |
+
+公平對比請選**總參數同級距**的配對（預設即為重量組）：
+
+- **重量組（預設）**：Qwen2.5-7B（7.6B dense）vs OLMoE（6.9B，每 token 只動用 1.3B）
+- **輕量組**：Qwen2.5-1.5B（1.5B dense）vs Granite MoE（1.3B，每 token 只動用 0.4B）
 
 ## 原理
 
@@ -66,4 +73,4 @@ uv run uvicorn server.main:app --port 8080
 
 ### 記憶體
 
-載入模型前系統會檢查可用記憶體（`MemAvailable`），不足會回明確錯誤。預設組合（Qwen2.5-0.5B + Granite MoE，約 4GB）。
+載入模型前系統會檢查可用記憶體（`MemAvailable`），不足會回明確錯誤。預設重量組（Qwen2.5-7B + OLMoE）約需 30GB；記憶體吃緊時改用輕量組（Qwen2.5-1.5B + Granite MoE，約 6GB）。

@@ -15,7 +15,9 @@ async function init() {
     const sel = $(m.kind === "dense" ? "dense-select" : "moe-select");
     sel.add(new Option(`${m.name}（${m.size_gb}GB）`, m.id));
   }
-  $("dense-select").value = "Qwen/Qwen2.5-0.5B-Instruct";
+  // 預設用總參數同級距的配對：7B dense vs 7B MoE
+  $("dense-select").value = "Qwen/Qwen2.5-7B-Instruct";
+  $("moe-select").value = "allenai/OLMoE-1B-7B-0924-Instruct";
   $("btn-load-dense").onclick = () => requestLoad("dense");
   $("btn-load-moe").onclick = () => requestLoad("moe");
   $("btn-run").onclick = run;
@@ -81,10 +83,13 @@ function setupPlayback(data) {
   state.heat = buildHeatmap($("heatmap"), data.moe.n_experts);
   $("dense-title").textContent = `Dense — ${data.dense.model_id}`;
   $("moe-title").textContent = `MoE — ${data.moe.model_id}`;
-  const m = data.moe;
+  const d = data.dense, m = data.moe;
+  $("dense-info").textContent =
+    `⬛ 總參數 ${fmt(d.params_per_token)} — 每個 token 全部動用（100%）`;
+  const pct = (100 * m.active_params_per_token / m.total_params).toFixed(1);
   $("moe-info").textContent =
-    `🔀 ${m.n_experts} 個 experts × ${m.n_layers} 層 — 每個 token 每層只啟用 ` +
-    `${m.top_k} 個（${(100 * m.top_k / m.n_experts).toFixed(1)}%）`;
+    `🔀 總參數 ${fmt(m.total_params)}・${m.n_experts} 個 experts × ${m.n_layers} 層 ` +
+    `— 每個 token 只啟用 ${m.top_k} 個 experts（≈${pct}% 參數）`;
   buildTokenStrip("dense-tokens", data.dense.tokens);
   buildTokenStrip("moe-tokens", data.moe.tokens);
   $("btn-play").disabled = false;
