@@ -81,6 +81,10 @@ function setupPlayback(data) {
   state.heat = buildHeatmap($("heatmap"), data.moe.n_experts);
   $("dense-title").textContent = `Dense — ${data.dense.model_id}`;
   $("moe-title").textContent = `MoE — ${data.moe.model_id}`;
+  const m = data.moe;
+  $("moe-info").textContent =
+    `🔀 ${m.n_experts} 個 experts × ${m.n_layers} 層 — 每個 token 每層只啟用 ` +
+    `${m.top_k} 個（${(100 * m.top_k / m.n_experts).toFixed(1)}%）`;
   buildTokenStrip("dense-tokens", data.dense.tokens);
   buildTokenStrip("moe-tokens", data.moe.tokens);
   $("btn-play").disabled = false;

@@ -40,7 +40,7 @@
   </div>
   <div class="panel moe">
     <h2 id="moe-title">MoE</h2>
-    <p class="panel-note">每層只點亮被 router 選中的少數 experts（亮度 = 路由權重）</p>
+    <p class="panel-note" id="moe-info">每層只點亮被 router 選中的少數 experts（顏色 = expert 身分）</p>
     <svg id="moe-panel"></svg>
     <div class="tokens" id="moe-tokens"></div>
     <div class="counter">已動用參數：<span id="moe-counter">0</span>
@@ -48,6 +48,7 @@
     <div class="heatmap-wrap">
       <h3>Expert 使用熱度（累計被選次數）</h3>
       <svg id="heatmap"></svg>
+      <p class="legend" id="moe-legend">每格一個 expert・顏色 = expert 身分（跨層同色可追蹤）・亮起 = 該層 router 選中・長條高度 = 累計被選次數</p>
     </div>
   </div>
 </main>
