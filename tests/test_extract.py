@@ -143,3 +143,18 @@ def test_moe_structure(granite):
             assert all(0 <= e["expert"] < r["n_experts"] for e in cell)
             total = sum(e["weight"] for e in cell)
             assert 0 < total <= 1.001  # softmax 後取 top-k，總和不超過 1
+
+
+@pytest.mark.model
+def test_generate_continuation_fallback(gpt2):
+    """gpt2 無 chat template → 純續寫；生成段可再走 extract 全序列擷取。"""
+    from server.extract import generate_ids
+
+    model, tok = gpt2
+    full_ids, n_input, text = generate_ids(model, tok, "The weather is", 8)
+    assert full_ids.shape[1] == n_input + 8
+    assert isinstance(text, str) and text.strip()
+
+    r = extract_dense(model, tok, "", input_ids=full_ids)
+    assert len(r["tokens"]) == full_ids.shape[1]
+    assert all(len(layer) == full_ids.shape[1] for layer in r["activations"])

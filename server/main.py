@@ -28,6 +28,7 @@ class InferReq(BaseModel):
     dense_model: str
     moe_model: str
     sentence: str
+    max_new_tokens: int = 24
 
 
 @app.get("/api/models")
@@ -57,6 +58,9 @@ def status():
 def infer(req: InferReq):
     if not req.sentence.strip():
         raise HTTPException(400, "請輸入句子")
+    if req.max_new_tokens not in extract.GEN_CHOICES:
+        raise HTTPException(
+            400, f"生成長度僅支援 {'/'.join(map(str, extract.GEN_CHOICES))}")
     dense = manager.get("dense", req.dense_model)
     moe = manager.get("moe", req.moe_model)
     if dense is None or moe is None:
@@ -65,14 +69,22 @@ def infer(req: InferReq):
     m_info = manager.catalog_entry(req.moe_model)
     try:
         with _INFER_LOCK:
-            d = extract.extract_dense(dense[0], dense[1], req.sentence)
-            m = extract.extract_moe(moe[0], moe[1], req.sentence)
+            d_ids, d_n_in, d_text = extract.generate_ids(
+                dense[0], dense[1], req.sentence, req.max_new_tokens)
+            d = extract.extract_dense(dense[0], dense[1], req.sentence,
+                                      input_ids=d_ids)
+            m_ids, m_n_in, m_text = extract.generate_ids(
+                moe[0], moe[1], req.sentence, req.max_new_tokens)
+            m = extract.extract_moe(moe[0], moe[1], req.sentence,
+                                    input_ids=m_ids)
     except extract.SentenceTooLong as e:
         raise HTTPException(400, str(e)) from None
-    d.update(model_id=req.dense_model, params_per_token=d_info.params_active)
+    d.update(model_id=req.dense_model, params_per_token=d_info.params_active,
+             n_input_tokens=d_n_in, generated_text=d_text)
     m.update(model_id=req.moe_model,
              active_params_per_token=m_info.params_active,
-             total_params=m_info.params_total)
+             total_params=m_info.params_total,
+             n_input_tokens=m_n_in, generated_text=m_text)
     return {"dense": d, "moe": m}
 
 

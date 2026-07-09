@@ -24,8 +24,15 @@
     <span id="moe-status" class="status">未載入</span>
   </div>
   <div class="sentence-row">
-    <input id="sentence" placeholder="輸入一個句子"
-           value="今天天氣真好，我們去公園散步吧。">
+    <input id="sentence" placeholder="輸入一個問題"
+           value="為什麼天空是藍色的？">
+    <label>生成長度
+      <select id="gen-len">
+        <option value="8">8</option>
+        <option value="24" selected>24</option>
+        <option value="48">48</option>
+      </select>
+    </label>
     <button id="btn-run" disabled>執行推論</button>
   </div>
 </section>
@@ -34,6 +41,7 @@
   <div class="panel dense">
     <h2 id="dense-title">Dense</h2>
     <p class="panel-note" id="dense-info">每個 token 動用<strong>全部</strong>神經元（32 個 neuron 區段，亮度 = 激活強度）</p>
+    <p class="answer" id="dense-answer" hidden></p>
     <svg id="dense-panel"></svg>
     <div class="tokens" id="dense-tokens"></div>
     <div class="counter">已動用參數：<span id="dense-counter">0</span></div>
@@ -41,6 +49,7 @@
   <div class="panel moe">
     <h2 id="moe-title">MoE</h2>
     <p class="panel-note" id="moe-info">每層只點亮被 router 選中的少數 experts（顏色 = expert 身分）</p>
+    <p class="answer" id="moe-answer" hidden></p>
     <svg id="moe-panel"></svg>
     <div class="tokens" id="moe-tokens"></div>
     <div class="counter">已動用參數：<span id="moe-counter">0</span>

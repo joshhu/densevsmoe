@@ -54,7 +54,7 @@ async function pollStatus() {
 async function run() {
   const btn = $("btn-run");
   btn.disabled = true;
-  btn.textContent = "推論中…";
+  btn.textContent = "推論+生成中…";
   try {
     const r = await fetch("/api/infer", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -62,6 +62,7 @@ async function run() {
         dense_model: $("dense-select").value,
         moe_model: $("moe-select").value,
         sentence: $("sentence").value,
+        max_new_tokens: parseInt($("gen-len").value, 10),
       }),
     });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
@@ -90,19 +91,25 @@ function setupPlayback(data) {
   $("moe-info").textContent =
     `🔀 總參數 ${fmt(m.total_params)}・${m.n_experts} 個 experts × ${m.n_layers} 層 ` +
     `— 每個 token 只啟用 ${m.top_k} 個 experts（≈${pct}% 參數）`;
-  buildTokenStrip("dense-tokens", data.dense.tokens);
-  buildTokenStrip("moe-tokens", data.moe.tokens);
+  for (const [side, s] of [["dense", d], ["moe", m]]) {
+    const p = $(`${side}-answer`);
+    p.hidden = false;
+    p.textContent = `💬 回答：${s.generated_text || "（無生成內容）"}`;
+  }
+  buildTokenStrip("dense-tokens", d.tokens, d.n_input_tokens);
+  buildTokenStrip("moe-tokens", m.tokens, m.n_input_tokens);
   $("btn-play").disabled = false;
   state.progress = 0;
   play();
 }
 
-function buildTokenStrip(id, tokens) {
+function buildTokenStrip(id, tokens, nInput) {
   const div = $(id);
   div.innerHTML = "";
   tokens.forEach((t, i) => {
     const span = document.createElement("span");
     span.textContent = t.trim() || "␣";
+    if (i >= nInput) span.classList.add("gen");   // 生成段強調
     span.onclick = () => seek(i / tokens.length);
     div.appendChild(span);
   });
@@ -137,7 +144,8 @@ function computeCounts(moe, token, litLayers) {
 
 function highlightToken(id, current) {
   [...$(id).children].forEach((span, i) => {
-    span.className = i < current ? "done" : i === current ? "current" : "";
+    span.classList.toggle("done", i < current);     // classList 保留 gen 標記
+    span.classList.toggle("current", i === current);
   });
 }
 

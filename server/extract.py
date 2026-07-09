@@ -5,7 +5,12 @@ import re
 
 import torch
 
-MAX_TOKENS = 64
+MAX_TOKENS = 64          # 使用者句子本身的上限
+MAX_INPUT_TOKENS = 160   # 含 chat template 的總輸入上限
+GEN_CHOICES = (8, 24, 48)
+# 覆蓋各模型冗長的預設 system prompt（如 granite 自帶日期與知識截止日），
+# 同時讓示範回答簡短
+SYSTEM_PROMPT = "請用一兩句話簡短回答。"
 
 
 class SentenceTooLong(ValueError):
@@ -21,6 +26,48 @@ def _encode(tokenizer, sentence: str, device):
     return {k: v.to(device) for k, v in enc.items()}, tokens
 
 
+def _ids_to_inputs(tokenizer, input_ids):
+    """把現成的 token ids 轉成 extract 用的 (enc, tokens)。"""
+    enc = {"input_ids": input_ids,
+           "attention_mask": torch.ones_like(input_ids)}
+    tokens = [tokenizer.decode([t]) for t in input_ids[0]]
+    return enc, tokens
+
+
+def _build_input_ids(tokenizer, sentence: str, device):
+    """問答模式：有 chat template 就套（句子作為 user 訊息）；否則退回純續寫。"""
+    n_sent = tokenizer(sentence, return_tensors="pt").input_ids.shape[1]
+    if n_sent > MAX_TOKENS:
+        raise SentenceTooLong(f"句子過長：{n_sent} tokens（上限 {MAX_TOKENS}）")
+    if getattr(tokenizer, "chat_template", None):
+        ids = tokenizer.apply_chat_template(
+            [{"role": "system", "content": SYSTEM_PROMPT},
+             {"role": "user", "content": sentence}],
+            add_generation_prompt=True, return_tensors="pt")
+        if not isinstance(ids, torch.Tensor):   # transformers 5.x 回傳 BatchEncoding
+            ids = ids["input_ids"]
+    else:
+        ids = tokenizer(sentence, return_tensors="pt").input_ids
+    n = ids.shape[1]
+    if n > MAX_INPUT_TOKENS:
+        raise SentenceTooLong(
+            f"輸入過長：含 chat template 共 {n} tokens（上限 {MAX_INPUT_TOKENS}）")
+    return ids.to(device)
+
+
+def generate_ids(model, tokenizer, sentence: str, max_new_tokens: int):
+    """貪婪生成，回傳 (完整序列 ids, 輸入長度, 生成文字)。"""
+    ids = _build_input_ids(tokenizer, sentence, model.device)
+    n_input = ids.shape[1]
+    with torch.no_grad():
+        out = model.generate(
+            ids, attention_mask=torch.ones_like(ids),
+            max_new_tokens=max_new_tokens, do_sample=False,
+            pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id)
+    text = tokenizer.decode(out[0][n_input:], skip_special_tokens=True)
+    return out, n_input, text
+
+
 def _find_act_modules(model) -> list[torch.nn.Module]:
     """各層 MLP 的激活函數模組（GPT-2: mlp.act；Llama/Qwen 系: mlp.act_fn），依層序排列。"""
     mods = []
@@ -33,8 +80,12 @@ def _find_act_modules(model) -> list[torch.nn.Module]:
     return [module for _, module in mods]
 
 
-def extract_dense(model, tokenizer, sentence: str, n_bins: int = 32) -> dict:
-    enc, tokens = _encode(tokenizer, sentence, model.device)
+def extract_dense(model, tokenizer, sentence: str, n_bins: int = 32,
+                  input_ids=None) -> dict:
+    if input_ids is None:
+        enc, tokens = _encode(tokenizer, sentence, model.device)
+    else:
+        enc, tokens = _ids_to_inputs(tokenizer, input_ids)
     acts: list[torch.Tensor] = []
 
     def hook(_mod, _inp, out):
@@ -93,8 +144,11 @@ def _route_from_logits(raw_logits_by_layer, seq: int, top_k: int) -> list:
     return routing
 
 
-def extract_moe(model, tokenizer, sentence: str) -> dict:
-    enc, tokens = _encode(tokenizer, sentence, model.device)
+def extract_moe(model, tokenizer, sentence: str, input_ids=None) -> dict:
+    if input_ids is None:
+        enc, tokens = _encode(tokenizer, sentence, model.device)
+    else:
+        enc, tokens = _ids_to_inputs(tokenizer, input_ids)
 
     cfg = model.config
     top_k = int(getattr(cfg, "num_experts_per_tok", 8))

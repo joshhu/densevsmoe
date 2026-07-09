@@ -71,3 +71,9 @@ footer { text-align: center; color: var(--muted); font-size: 0.75rem; padding: 0
 .legend { color: var(--muted); font-size: 0.75rem; margin: 0.4rem 0 0; }
 #moe-info { color: var(--moe); font-size: 0.92rem; font-weight: 600; }
 #dense-info { color: var(--dense); font-size: 0.92rem; font-weight: 600; }
+.answer {
+  background: var(--dim); border-radius: 6px; padding: 0.4rem 0.6rem;
+  font-size: 0.88rem; margin: 0 0 0.6rem; line-height: 1.5;
+}
+.tokens span.gen { box-shadow: inset 0 0 0 1px #6ee787; color: #a5e8b5; }
+.tokens span.gen.current { background: #6ee787; color: var(--bg); }

@@ -35,7 +35,8 @@ def test_infer_full_flow(monkeypatch):
             pytest.fail(f"模型載入逾時：{mid}")
 
     r = client.post("/api/infer", json={
-        "dense_model": GPT2, "moe_model": GRANITE, "sentence": "今天天氣真好"})
+        "dense_model": GPT2, "moe_model": GRANITE,
+        "sentence": "今天天氣真好", "max_new_tokens": 8})
     assert r.status_code == 200, r.text
     body = r.json()
     d, m = body["dense"], body["moe"]
@@ -44,3 +45,9 @@ def test_infer_full_flow(monkeypatch):
     assert m["n_experts"] == 32 and m["top_k"] == 8
     assert len(m["routing"]) == m["n_layers"]
     assert m["active_params_per_token"] < m["total_params"]
+    # 生成：兩側都有回答文字，token 序列 = 輸入 + 生成
+    for side in (d, m):
+        assert side["generated_text"].strip()
+        assert 0 < side["n_input_tokens"] < len(side["tokens"])
+    # routing 覆蓋含生成段的完整序列
+    assert all(len(layer) == len(m["tokens"]) for layer in m["routing"])

@@ -41,10 +41,14 @@ uv run uvicorn server.main:app --port 8000
 
 ## 原理
 
-推論只跑一次：後端（FastAPI + PyTorch）對句子做一次前向傳播，
-以 forward hook 擷取 dense 各層 MLP 激活強度、以 `output_router_logits=True`
-擷取 MoE 各層 router top-k 路由，打包成 JSON；前端（原生 JS + SVG）重播動畫，
-暫停／倒帶／調速都不需重新推論。
+1. **真實生成**：輸入的問題經 chat template（無 template 的模型退回純續寫）後，
+   兩個模型各自貪婪生成回答（長度 8/24/48 可選），dense 與 MoE 的答案並排顯示。
+2. **一次前向擷取**：對「輸入 + 生成」的完整序列跑一次前向傳播，
+   以 forward hook 擷取 dense 各層 MLP 激活強度、以 router hook
+   （transformers 5.x 的 `output_router_logits` 對部分架構已失效）擷取
+   MoE 各層 top-k 路由——**生成出來的每個 token 也有真實的逐層資料**。
+3. **前端重播**：打包成單一 JSON 後由前端（原生 JS + SVG）播放動畫，
+   生成段 token 以綠框標示；暫停／倒帶／調速都不需重新推論。
 
 ## 測試
 
