@@ -18,6 +18,8 @@ def server():
         ["uv", "run", "uvicorn", "server.main:app", "--port", str(PORT)])
     try:
         for _ in range(60):
+            if proc.poll() is not None:
+                pytest.fail(f"伺服器提前結束，returncode={proc.returncode}")
             try:
                 socket.create_connection(("127.0.0.1", PORT), 1).close()
                 break
@@ -28,7 +30,11 @@ def server():
         yield URL
     finally:
         proc.terminate()
-        proc.wait()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 
 
 @pytest.mark.e2e
