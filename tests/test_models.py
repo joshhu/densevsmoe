@@ -52,6 +52,26 @@ def test_mem_insufficient():
     assert "記憶體不足" in st["detail"]
 
 
+def test_concurrent_same_kind_load_rejected():
+    def slow_loader(model_id):
+        time.sleep(0.3)
+        return f"model:{model_id}", f"tok:{model_id}"
+
+    mgr = ModelManager(loader=slow_loader, mem_check=lambda: 999.0)
+    a, b = "openai-community/gpt2", "Qwen/Qwen2.5-0.5B-Instruct"
+
+    st_a = mgr.request_load(a)
+    assert st_a["state"] == "loading"
+
+    st_b = mgr.request_load(b)
+    assert st_b["state"] == "error"
+    assert "載入中" in st_b["detail"]
+
+    assert wait_ready(mgr, a)["state"] == "ready"
+    assert mgr.loaded["dense"][0] == a
+    assert mgr.status[a]["state"] == "ready"
+
+
 def test_switch_unloads_old():
     mgr = make_mgr()
     a, b = "openai-community/gpt2", "Qwen/Qwen2.5-0.5B-Instruct"

@@ -48,6 +48,7 @@ class ModelManager:
         self._lock = threading.Lock()
         self.loaded: dict[str, tuple] = {}   # kind -> (model_id, model, tokenizer)
         self.status: dict[str, dict] = {}    # model_id -> {"state", "detail"}
+        self._loading_kinds: set[str] = set()  # 正在背景載入中的 kind，避免同類型並行載入
 
     @staticmethod
     def catalog_entry(model_id: str) -> ModelInfo | None:
@@ -75,6 +76,8 @@ class ModelManager:
                 return {"state": "loading"}
             if self.loaded.get(info.kind, (None,))[0] == model_id:
                 return {"state": "ready"}
+            if info.kind in self._loading_kinds:
+                return {"state": "error", "detail": "同類型模型載入中，請稍後再試"}
             free = self._mem_check()
             if free < info.size_gb * 1.2:
                 msg = (f"可用記憶體不足：需要約 {info.size_gb * 1.2:.1f} GB，"
@@ -82,6 +85,7 @@ class ModelManager:
                 self.status[model_id] = {"state": "error", "detail": msg}
                 return self.status[model_id]
             self.status[model_id] = {"state": "loading", "detail": "載入中"}
+            self._loading_kinds.add(info.kind)
         threading.Thread(target=self._load_worker, args=(info,), daemon=True).start()
         return {"state": "loading"}
 
@@ -95,6 +99,9 @@ class ModelManager:
         except Exception as e:  # noqa: BLE001 — 載入失敗需回報前端
             with self._lock:
                 self.status[info.id] = {"state": "error", "detail": f"載入失敗：{e}"}
+        finally:
+            with self._lock:
+                self._loading_kinds.discard(info.kind)
 
     def _unload(self, kind: str):
         with self._lock:
