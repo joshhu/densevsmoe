@@ -66,3 +66,7 @@ main {
 }
 #scrub { width: min(500px, 60vw); accent-color: var(--fg); padding: 0; }
 footer { text-align: center; color: var(--muted); font-size: 0.75rem; padding: 0.5rem 0 1.2rem; }
+
+.col-label { fill: var(--muted); font-size: 8px; }
+.legend { color: var(--muted); font-size: 0.75rem; margin: 0.4rem 0 0; }
+#moe-info { color: var(--moe); font-size: 0.92rem; font-weight: 600; }
