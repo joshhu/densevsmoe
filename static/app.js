@@ -15,6 +15,7 @@ async function init() {
     const sel = $(m.kind === "dense" ? "dense-select" : "moe-select");
     sel.add(new Option(`${m.name}（${m.size_gb}GB）`, m.id));
   }
+  $("dense-select").value = "Qwen/Qwen2.5-0.5B-Instruct";
   $("btn-load-dense").onclick = () => requestLoad("dense");
   $("btn-load-moe").onclick = () => requestLoad("moe");
   $("btn-run").onclick = run;

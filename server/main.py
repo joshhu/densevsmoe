@@ -1,4 +1,5 @@
 """FastAPI 進入點：serve 前端靜態檔與 API。"""
+import threading
 from dataclasses import asdict
 from pathlib import Path
 
@@ -11,6 +12,10 @@ from .models import MODEL_CATALOG, ModelManager
 
 app = FastAPI(title="Dense vs MoE 視覺化")
 manager = ModelManager()
+
+# forward hook 掛在共享模型上，且 GPU 推論本應序列化：兩個並行 /api/infer
+# 請求若同時對同一模型 register_forward_hook 會互收資料，導致 500 或靜默壞資料。
+_INFER_LOCK = threading.Lock()
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
@@ -59,8 +64,9 @@ def infer(req: InferReq):
     d_info = manager.catalog_entry(req.dense_model)
     m_info = manager.catalog_entry(req.moe_model)
     try:
-        d = extract.extract_dense(dense[0], dense[1], req.sentence)
-        m = extract.extract_moe(moe[0], moe[1], req.sentence)
+        with _INFER_LOCK:
+            d = extract.extract_dense(dense[0], dense[1], req.sentence)
+            m = extract.extract_moe(moe[0], moe[1], req.sentence)
     except extract.SentenceTooLong as e:
         raise HTTPException(400, str(e)) from None
     d.update(model_id=req.dense_model, params_per_token=d_info.params_active)

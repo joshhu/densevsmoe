@@ -1,4 +1,5 @@
 """API 功能測試 — 以假 loader 注入，不下載模型。"""
+import threading
 import time
 
 import pytest
@@ -72,6 +73,54 @@ def test_load_memory_insufficient_returns_409(monkeypatch):
     r = c.post("/api/load", json={"model_id": GPT2})
     assert r.status_code == 409
     assert "記憶體不足" in r.json()["detail"]
+
+
+def test_concurrent_infer_serialized(client, monkeypatch):
+    load_and_wait(client, GPT2)
+    load_and_wait(client, GRANITE)
+
+    intervals = []
+    lock = threading.Lock()
+
+    def fake_extract_dense(model, tok, sentence, n_bins=32):
+        start = time.monotonic()
+        time.sleep(0.2)
+        end = time.monotonic()
+        with lock:
+            intervals.append((start, end))
+        return {"tokens": ["a"], "n_layers": 1, "activations": [[[0.0]]]}
+
+    def fake_extract_moe(model, tok, sentence):
+        start = time.monotonic()
+        time.sleep(0.2)
+        end = time.monotonic()
+        with lock:
+            intervals.append((start, end))
+        return {"tokens": ["a"], "n_layers": 1, "n_experts": 1, "top_k": 1,
+                "routing": [[[{"expert": 0, "weight": 1.0}]]]}
+
+    monkeypatch.setattr(main.extract, "extract_dense", fake_extract_dense)
+    monkeypatch.setattr(main.extract, "extract_moe", fake_extract_moe)
+
+    results = []
+
+    def do_infer():
+        r = client.post("/api/infer", json={
+            "dense_model": GPT2, "moe_model": GRANITE, "sentence": "hi"})
+        results.append(r)
+
+    threads = [threading.Thread(target=do_infer) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(results) == 2
+    assert all(r.status_code == 200 for r in results)
+    assert len(intervals) == 4
+    intervals.sort()
+    for (s1, e1), (s2, e2) in zip(intervals, intervals[1:]):
+        assert e1 <= s2, f"重疊區間：({s1}, {e1}) vs ({s2}, {e2})"
 
 
 def test_load_concurrent_same_kind_returns_409(monkeypatch):
