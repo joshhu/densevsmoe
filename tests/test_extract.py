@@ -1,7 +1,7 @@
 """extract 擷取邏輯測試 — 實跑小模型（gpt2 / granite MoE）。"""
 import pytest
 
-from server.extract import SentenceTooLong, extract_dense
+from server.extract import SentenceTooLong, extract_dense, extract_moe
 from server.models import ModelManager
 
 
@@ -57,3 +57,28 @@ def test_dense_no_act_modules_raises():
 
     with pytest.raises(RuntimeError, match="MLP"):
         extract_dense(Dummy(), DummyTok(), "abc")
+
+
+GRANITE = "ibm-granite/granite-3.1-1b-a400m-instruct"
+
+
+@pytest.fixture(scope="session")
+def granite():
+    return ModelManager._default_loader(GRANITE)
+
+
+@pytest.mark.model
+def test_moe_structure(granite):
+    model, tok = granite
+    r = extract_moe(model, tok, "今天天氣真好")
+    n_tok = len(r["tokens"])
+    assert n_tok >= 2
+    assert r["n_experts"] == 32 and r["top_k"] == 8
+    assert len(r["routing"]) == r["n_layers"] > 0
+    for layer in r["routing"]:
+        assert len(layer) == n_tok
+        for cell in layer:
+            assert len(cell) == r["top_k"]
+            assert all(0 <= e["expert"] < r["n_experts"] for e in cell)
+            total = sum(e["weight"] for e in cell)
+            assert 0 < total <= 1.001  # softmax 後取 top-k，總和不超過 1

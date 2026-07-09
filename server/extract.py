@@ -69,3 +69,76 @@ def extract_dense(model, tokenizer, sentence: str, n_bins: int = 32) -> dict:
         "n_layers": int(stacked.shape[0]),
         "activations": stacked.tolist(),
     }
+
+
+def _find_router_modules(model) -> list[torch.nn.Module]:
+    """各層 MoE router 模組（class 名稱以 TopKRouter 結尾，如 GraniteMoeTopKRouter/
+    OlmoeTopKRouter），依模型內部登記序排列（即層序）。"""
+    return [m for m in model.modules() if type(m).__name__.endswith("TopKRouter")]
+
+
+def _route_from_logits(raw_logits_by_layer, seq: int, top_k: int) -> list:
+    """對每層原始 router logits（shape (batch*seq, n_experts)）做 softmax 後取
+    top-k，回傳 [[{expert, weight}×top_k]×seq]×n_layers。"""
+    routing = []
+    for logits in raw_logits_by_layer:
+        probs = torch.softmax(logits.detach().float().cpu(), dim=-1)
+        probs = probs.reshape(seq, -1)
+        weights, indices = probs.topk(top_k, dim=-1)
+        routing.append([
+            [{"expert": int(e), "weight": round(float(w), 4)}
+             for e, w in zip(idx_row, w_row)]
+            for idx_row, w_row in zip(indices, weights)
+        ])
+    return routing
+
+
+def extract_moe(model, tokenizer, sentence: str) -> dict:
+    enc, tokens = _encode(tokenizer, sentence, model.device)
+
+    cfg = model.config
+    top_k = int(getattr(cfg, "num_experts_per_tok", 8))
+    n_experts = int(getattr(cfg, "num_experts", 0)
+                    or getattr(cfg, "num_local_experts"))
+    seq = enc["input_ids"].shape[1]
+
+    # transformers 5.13 重構後，GraniteMoe 的 output_router_logits 已失效：
+    # GraniteMoePreTrainedModel._can_record_outputs 只登記 hidden_states/
+    # attentions，router_logits 在 GraniteMoeMoE.forward 內以 `_` 直接丟棄，
+    # 導致 model(**enc, output_router_logits=True) 回傳的 out.router_logits
+    # 恆為 None。改用 forward hook 直接擷取各層 router（*TopKRouter）forward
+    # 回傳 tuple 中形狀為 (..., n_experts) 的原始 logits 張量（Granite 是第 3
+    # 個回傳值；Olmoe 等架構則是第 1 個，故以形狀而非位置索引辨識，較穩健），
+    # 再沿用與 output_router_logits 路徑相同的 softmax+top-k 邏輯。
+    # 對仍支援 output_router_logits 的架構則保留原機制作為後援。
+    router_mods = _find_router_modules(model)
+
+    if router_mods:
+        captured: list[torch.Tensor] = []
+
+        def hook(_mod, _inp, out):
+            for t in out:
+                if isinstance(t, torch.Tensor) and t.shape[-1] == n_experts:
+                    captured.append(t)
+                    break
+
+        handles = [m.register_forward_hook(hook) for m in router_mods]
+        try:
+            with torch.no_grad():
+                model(**enc)
+        finally:
+            for h in handles:
+                h.remove()
+        routing = _route_from_logits(captured, seq, top_k)
+    else:
+        with torch.no_grad():
+            out = model(**enc, output_router_logits=True)
+        routing = _route_from_logits(out.router_logits, seq, top_k)
+
+    return {
+        "tokens": tokens,
+        "n_layers": len(routing),
+        "n_experts": n_experts,
+        "top_k": top_k,
+        "routing": routing,
+    }
