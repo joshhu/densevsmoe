@@ -11,7 +11,12 @@
   `add_generation_prompt=True`）；無 template 的模型（如 GPT-2）自動退回純續寫。
 - **貪婪解碼**（`do_sample=False`）：同一問題示範結果可重現。
 - `max_new_tokens` 白名單 **{8, 24, 48}**，預設 24；非白名單值回 400。
-- 輸入（含 template）上限維持 64 tokens；生成部分不計入上限。
+- 使用者句子上限 64 tokens；**含 chat template 的總輸入上限 160 tokens**
+  （granite 等模型的預設 system prompt 很長，64 一定爆）。
+- 套 template 時一律帶入精簡 system 訊息「請用一兩句話簡短回答。」——覆蓋模型
+  冗長的預設 system prompt、縮短輸入、並讓示範回答簡潔。
+- transformers 5.x 的 `apply_chat_template(return_tensors="pt")` 回傳
+  `BatchEncoding`，需取 `["input_ids"]`（實作已處理兩種型別）。
 - dense 與 MoE **各自生成各自的回答**，並排顯示。
 
 ## 後端（server/extract.py、server/main.py）

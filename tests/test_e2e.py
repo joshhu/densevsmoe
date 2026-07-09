@@ -62,3 +62,8 @@ def test_full_user_flow(server, page):
     assert page.text_content("#moe-counter") != "0"
     assert (page.locator("#dense-tokens span").count() > 0
             and page.locator("#moe-tokens span").count() > 0)
+    # 生成：回答文字出現、token 條有生成段標記
+    assert "回答" in page.text_content("#dense-answer")
+    assert "回答" in page.text_content("#moe-answer")
+    assert page.locator("#dense-tokens span.gen").count() > 0
+    assert page.locator("#moe-tokens span.gen").count() > 0

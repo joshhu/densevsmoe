@@ -82,7 +82,10 @@ def test_concurrent_infer_serialized(client, monkeypatch):
     intervals = []
     lock = threading.Lock()
 
-    def fake_extract_dense(model, tok, sentence, n_bins=32):
+    def fake_generate_ids(model, tok, sentence, max_new_tokens):
+        return None, 1, "fake"
+
+    def fake_extract_dense(model, tok, sentence, n_bins=32, input_ids=None):
         start = time.monotonic()
         time.sleep(0.2)
         end = time.monotonic()
@@ -90,7 +93,7 @@ def test_concurrent_infer_serialized(client, monkeypatch):
             intervals.append((start, end))
         return {"tokens": ["a"], "n_layers": 1, "activations": [[[0.0]]]}
 
-    def fake_extract_moe(model, tok, sentence):
+    def fake_extract_moe(model, tok, sentence, input_ids=None):
         start = time.monotonic()
         time.sleep(0.2)
         end = time.monotonic()
@@ -99,6 +102,7 @@ def test_concurrent_infer_serialized(client, monkeypatch):
         return {"tokens": ["a"], "n_layers": 1, "n_experts": 1, "top_k": 1,
                 "routing": [[[{"expert": 0, "weight": 1.0}]]]}
 
+    monkeypatch.setattr(main.extract, "generate_ids", fake_generate_ids)
     monkeypatch.setattr(main.extract, "extract_dense", fake_extract_dense)
     monkeypatch.setattr(main.extract, "extract_moe", fake_extract_moe)
 
@@ -121,6 +125,14 @@ def test_concurrent_infer_serialized(client, monkeypatch):
     intervals.sort()
     for (s1, e1), (s2, e2) in zip(intervals, intervals[1:]):
         assert e1 <= s2, f"重疊區間：({s1}, {e1}) vs ({s2}, {e2})"
+
+
+def test_infer_bad_gen_len(client):
+    r = client.post("/api/infer", json={
+        "dense_model": GPT2, "moe_model": GRANITE,
+        "sentence": "hi", "max_new_tokens": 999})
+    assert r.status_code == 400
+    assert "生成長度" in r.json()["detail"]
 
 
 def test_load_concurrent_same_kind_returns_409(monkeypatch):
