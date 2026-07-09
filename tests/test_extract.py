@@ -31,3 +31,29 @@ def test_dense_sentence_too_long(gpt2):
     model, tok = gpt2
     with pytest.raises(SentenceTooLong):
         extract_dense(model, tok, "word " * 100)
+
+
+def test_dense_no_act_modules_raises():
+    import torch
+    import torch.nn as nn
+
+    class Dummy(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.linear = nn.Linear(4, 4)
+            self.device = "cpu"
+
+        def forward(self, input_ids=None, attention_mask=None, **kw):
+            return None
+
+    class DummyTok:
+        def __call__(self, s, return_tensors=None):
+            from transformers import BatchEncoding
+            return BatchEncoding({"input_ids": torch.tensor([[1, 2, 3]])},
+                                 tensor_type="pt")
+
+        def decode(self, ids):
+            return "x"
+
+    with pytest.raises(RuntimeError, match="MLP"):
+        extract_dense(Dummy(), DummyTok(), "abc")

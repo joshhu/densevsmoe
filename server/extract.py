@@ -57,6 +57,10 @@ def extract_dense(model, tokenizer, sentence: str, n_bins: int = 32) -> dict:
             a = torch.nn.functional.pad(a, (0, pad))
         layers.append(a.reshape(seq, n_bins, -1).mean(-1))   # (seq, n_bins)
 
+    if not layers:
+        raise RuntimeError(
+            f"找不到 MLP 激活模組（模型 {type(model).__name__} 的命名不符 mlp.act/mlp.act_fn）")
+
     stacked = torch.stack(layers)                  # (L, seq, n_bins)
     maxv = stacked.amax(dim=(1, 2), keepdim=True).clamp(min=1e-6)
     stacked = ((stacked / maxv) * 1000).round() / 1000       # 逐層正規化 0..1
