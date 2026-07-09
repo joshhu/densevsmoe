@@ -35,9 +35,12 @@ def list_models():
 @app.post("/api/load", status_code=202)
 def load_model(req: LoadReq):
     try:
-        return manager.request_load(req.model_id)
+        result = manager.request_load(req.model_id)
     except KeyError:
-        raise HTTPException(400, "未知的模型 ID（僅支援策展清單內的模型）")
+        raise HTTPException(400, "未知的模型 ID（僅支援策展清單內的模型）") from None
+    if result.get("state") == "error":
+        raise HTTPException(409, result.get("detail", "載入失敗"))
+    return result
 
 
 @app.get("/api/status")
@@ -59,7 +62,7 @@ def infer(req: InferReq):
         d = extract.extract_dense(dense[0], dense[1], req.sentence)
         m = extract.extract_moe(moe[0], moe[1], req.sentence)
     except extract.SentenceTooLong as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from None
     d.update(model_id=req.dense_model, params_per_token=d_info.params_active)
     m.update(model_id=req.moe_model,
              active_params_per_token=m_info.params_active,

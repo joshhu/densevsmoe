@@ -62,3 +62,28 @@ def test_infer_requires_loaded_models(client):
 def test_index_served(client):
     r = client.get("/")
     assert r.status_code == 200
+
+
+def test_load_memory_insufficient_returns_409(monkeypatch):
+    mgr = ModelManager(loader=lambda mid: (object(), object()),
+                       mem_check=lambda: 0.1)
+    monkeypatch.setattr(main, "manager", mgr)
+    c = TestClient(main.app)
+    r = c.post("/api/load", json={"model_id": GPT2})
+    assert r.status_code == 409
+    assert "記憶體不足" in r.json()["detail"]
+
+
+def test_load_concurrent_same_kind_returns_409(monkeypatch):
+    def slow_loader(mid):
+        time.sleep(0.3)
+        return object(), object()
+
+    mgr = ModelManager(loader=slow_loader, mem_check=lambda: 999.0)
+    monkeypatch.setattr(main, "manager", mgr)
+    c = TestClient(main.app)
+    r1 = c.post("/api/load", json={"model_id": GPT2})
+    assert r1.status_code == 202
+    r2 = c.post("/api/load", json={"model_id": "Qwen/Qwen2.5-0.5B-Instruct"})
+    assert r2.status_code == 409
+    assert "載入中" in r2.json()["detail"]
