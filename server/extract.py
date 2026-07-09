@@ -118,7 +118,8 @@ def extract_moe(model, tokenizer, sentence: str) -> dict:
 
         def hook(_mod, _inp, out):
             for t in out:
-                if isinstance(t, torch.Tensor) and t.shape[-1] == n_experts:
+                if (isinstance(t, torch.Tensor) and t.shape[-1] == n_experts
+                        and t.dtype.is_floating_point):
                     captured.append(t)
                     break
 
