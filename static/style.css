@@ -1,0 +1,68 @@
+:root {
+  --bg: #0f1117; --panel: #171b26; --border: #2a3040; --dim: #232838;
+  --fg: #e6e9f0; --muted: #8b93a7;
+  --dense: #ff9a28; --moe: #3cdcff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: "Noto Sans TC", system-ui, sans-serif;
+}
+header { text-align: center; padding: 1.2rem 1rem 0.4rem; }
+h1 { margin: 0; font-size: 1.5rem; }
+.subtitle { color: var(--muted); margin: 0.3rem 0 0; font-size: 0.9rem; }
+
+#controls {
+  display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: center;
+  align-items: center; padding: 0.8rem 1rem;
+}
+.model-pick { display: flex; align-items: center; gap: 0.5rem; }
+select, input, button {
+  background: var(--panel); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.4rem 0.7rem; font-size: 0.9rem;
+}
+button { cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--fg); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.sentence-row { display: flex; gap: 0.5rem; flex: 1 1 100%; justify-content: center; }
+#sentence { width: min(480px, 70vw); }
+.status { font-size: 0.85rem; color: var(--muted); min-width: 5rem; }
+.status.ready { color: #6ee787; }
+.status.error { color: #ff6b6b; }
+
+main {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  padding: 0 1rem; max-width: 1400px; margin: 0 auto;
+}
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.8rem;
+}
+.panel.dense h2 { color: var(--dense); }
+.panel.moe h2 { color: var(--moe); }
+.panel h2 { margin: 0 0 0.2rem; font-size: 1.05rem; }
+.panel-note { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+.panel svg { width: 100%; height: auto; display: block; }
+.layer-label { fill: var(--muted); font-size: 9px; }
+
+.tokens { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 0.6rem; }
+.tokens span {
+  padding: 2px 6px; border-radius: 4px; background: var(--dim);
+  font-size: 0.8rem; cursor: pointer; color: var(--muted);
+}
+.tokens span.done { color: var(--fg); }
+.tokens span.current { background: var(--fg); color: var(--bg); font-weight: 700; }
+
+.counter { margin-top: 0.5rem; font-size: 0.95rem; }
+.counter span { font-variant-numeric: tabular-nums; font-weight: 700; }
+.ratio { color: var(--muted); font-size: 0.8rem; font-weight: 400 !important; }
+.heatmap-wrap h3 { font-size: 0.85rem; color: var(--muted); margin: 0.7rem 0 0.3rem; }
+
+#playback {
+  display: flex; gap: 1rem; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+#scrub { width: min(500px, 60vw); accent-color: var(--fg); padding: 0; }
+footer { text-align: center; color: var(--muted); font-size: 0.75rem; padding: 0.5rem 0 1.2rem; }

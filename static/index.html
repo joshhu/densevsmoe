@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dense vs MoE 推論視覺化</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Dense vs MoE 推論視覺化</h1>
+  <p class="subtitle">看見句子流過模型時，每一層真正被「點亮」的部分 — 真實推論資料</p>
+</header>
+
+<section id="controls">
+  <div class="model-pick">
+    <label>Dense 模型 <select id="dense-select"></select></label>
+    <button id="btn-load-dense">載入</button>
+    <span id="dense-status" class="status">未載入</span>
+  </div>
+  <div class="model-pick">
+    <label>MoE 模型 <select id="moe-select"></select></label>
+    <button id="btn-load-moe">載入</button>
+    <span id="moe-status" class="status">未載入</span>
+  </div>
+  <div class="sentence-row">
+    <input id="sentence" placeholder="輸入一個句子"
+           value="今天天氣真好，我們去公園散步吧。">
+    <button id="btn-run" disabled>執行推論</button>
+  </div>
+</section>
+
+<main>
+  <div class="panel dense">
+    <h2 id="dense-title">Dense</h2>
+    <p class="panel-note">每個 token 動用<strong>全部</strong>神經元（32 個 neuron 區段，亮度 = 激活強度）</p>
+    <svg id="dense-panel"></svg>
+    <div class="tokens" id="dense-tokens"></div>
+    <div class="counter">已動用參數：<span id="dense-counter">0</span></div>
+  </div>
+  <div class="panel moe">
+    <h2 id="moe-title">MoE</h2>
+    <p class="panel-note">每層只點亮被 router 選中的少數 experts（亮度 = 路由權重）</p>
+    <svg id="moe-panel"></svg>
+    <div class="tokens" id="moe-tokens"></div>
+    <div class="counter">已動用參數：<span id="moe-counter">0</span>
+      <span id="moe-ratio" class="ratio"></span></div>
+    <div class="heatmap-wrap">
+      <h3>Expert 使用熱度（累計被選次數）</h3>
+      <svg id="heatmap"></svg>
+    </div>
+  </div>
+</main>
+
+<section id="playback">
+  <button id="btn-play" disabled>▶ 播放</button>
+  <label>速度
+    <select id="speed">
+      <option value="0.5">0.5x</option>
+      <option value="1" selected>1x</option>
+      <option value="2">2x</option>
+    </select>
+  </label>
+  <input type="range" id="scrub" min="0" max="1000" value="0">
+</section>
+
+<footer>PyTorch + transformers 真實推論 · DGX Spark</footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>
