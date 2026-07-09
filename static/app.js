@@ -4,7 +4,7 @@ import { buildDensePanel, buildHeatmap, buildMoePanel } from "./viz.js";
 const $ = (id) => document.getElementById(id);
 const state = {
   data: null, dense: null, moe: null, heat: null,
-  playing: false, progress: 0, speed: 1, lastTs: 0,
+  playing: false, progress: 0, speed: 1, lastTs: 0, rafId: 0,
 };
 
 const STATE_TEXT = { idle: "未載入", loading: "載入中…", ready: "✓ 已載入" };
@@ -72,6 +72,8 @@ async function run() {
 }
 
 function setupPlayback(data) {
+  state.playing = false;
+  cancelAnimationFrame(state.rafId);
   state.data = data;
   state.dense = buildDensePanel($("dense-panel"), data.dense);
   state.moe = buildMoePanel($("moe-panel"), data.moe);
@@ -161,15 +163,16 @@ function tick(ts) {
     $("btn-play").textContent = "↺ 重播";
     return;
   }
-  requestAnimationFrame(tick);
+  state.rafId = requestAnimationFrame(tick);
 }
 
 function play() {
+  cancelAnimationFrame(state.rafId);
   if (state.progress >= 1) state.progress = 0;
   state.playing = true;
   state.lastTs = 0;
   $("btn-play").textContent = "⏸ 暫停";
-  requestAnimationFrame(tick);
+  state.rafId = requestAnimationFrame(tick);
 }
 
 function togglePlay() {
